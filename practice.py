@@ -1,47 +1,22 @@
-# doc = {
-#     "title": "Sample Document",
-#     "content": "This is a sample document for testing purposes.",
-# }
+import chromadb
+from sentence_transformers import SentenceTransformer
 
-# doc["chunk_length"] = len(doc["content"]) 
-
-# print(doc)
-
-chunks = [
-    {"title": "Sample Document 1", "content": "This is the first chunk of the document."},
-    {"title": "Sample Document 2", "content": "This is the second chunk of the document."},
-    {"title": "Sample Document 3", "content": "This is the third chunk of the document."}
-]
-
-for doc in chunks:
-    doc["chunk_length"] = len(doc["content"])
-    print(doc)
-
+# 1. Read file and load content
 with open("./article/demo.txt", "r", encoding="utf-8") as f:
     text = f.read()
 
-
-# Function that takes a long string and splits it every 500 characters
+# 2. Function to slice text into chunks
 def chunk_text(text, chunk_size=500):
     chunks_list = []
     for i in range(0, len(text), chunk_size):
-        # Take a slice of string from index 'i' to 'i + chunk_size'
         chunk = text[i : i + chunk_size]
         chunks_list.append(chunk)
     return chunks_list
 
-# Test your chunker on the loaded file
-file_chunks = chunk_text(text, chunk_size=500)
-
-print(f"Total chunks created from file: {len(file_chunks)}")
-print("First chunk preview:")
-print(file_chunks[0])
-
 raw_chunks = chunk_text(text, chunk_size=500)
 
-# 2. Transform raw string chunks into structured dictionaries
+# 3. Transform raw chunks into structured dictionaries
 documents = []
-
 for index, chunk in enumerate(raw_chunks):
     doc_dict = {
         "id": f"chunk_{index}",
@@ -51,7 +26,53 @@ for index, chunk in enumerate(raw_chunks):
     }
     documents.append(doc_dict)
 
-# 3. Verify your structured data
-print(f"Total structured documents: {len(documents)}")
-print("\nFirst document structure:")
-print(documents[0])
+# 4. Load local embedding model (downloads automatically on first run)
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# 5. Extract texts, IDs, and metadatas for ChromaDB
+all_texts = [doc["text"] for doc in documents]
+all_ids = [doc["id"] for doc in documents]
+all_metadatas = [{"source": doc["source"], "length": doc["length"]} for doc in documents]
+
+# 6. Generate embeddings for all chunks
+all_embeddings = model.encode(all_texts).tolist()
+
+# 7. Initialize ChromaDB (In-Memory database)
+chroma_client = chromadb.Client()
+
+collection = chroma_client.create_collection(name="rag_demo")
+
+# Add documents, embeddings, and metadata into ChromaDB
+collection.add(
+    documents=all_texts,
+    embeddings=all_embeddings,
+    metadatas=all_metadatas,
+    ids=all_ids
+)
+
+print(f"Successfully stored {collection.count()} chunks in ChromaDB!\n")
+
+# --- RETRIEVAL TEST ---
+
+# 8. Define a query string and generate its embedding
+query_text = "What is the main topic of this text?"
+query_embedding = model.encode([query_text]).tolist()
+
+# 9. Query ChromaDB for the top 2 most relevant chunks
+results = collection.query(
+    query_embeddings=query_embedding,
+    n_results=2
+)
+
+# 10. Display the search results
+print("--- Search Results ---")
+for rank in range(len(results["documents"][0])):
+    matched_text = results["documents"][0][rank]
+    matched_id = results["ids"][0][rank]
+    distance = results["distances"][0][rank]
+    metadata = results["metadatas"][0][rank]
+    
+    print(f"\nRank {rank + 1} (Distance: {distance:.4f}):")
+    print(f"ID: {matched_id}")
+    print(f"Source: {metadata['source']}")
+    print(f"Text Snippet: {matched_text[:150]}...")
