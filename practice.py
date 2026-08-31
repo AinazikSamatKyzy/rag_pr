@@ -1,5 +1,6 @@
 import faiss
 import numpy as np
+import requests
 from sentence_transformers import SentenceTransformer
 
 # 1. Read file and load content
@@ -69,3 +70,36 @@ for rank, doc_idx in enumerate(indices[0]):
     score = distances[0][rank]
     print(f"\nRank {rank + 1} | Similarity Score: {score:.4f} | Chunk ID: {matched_doc['id']}")
     print(f"Text: {matched_doc['text'].strip()}")
+
+
+# 10. Extract the text from top retrieved chunks
+retrieved_context = "\n---\n".join([documents[idx]["text"] for idx in indices[0]])
+
+# 11. Construct the RAG prompt
+prompt = f"""
+You are a helpful assistant. Answer the question based ONLY on the following context.
+If the answer cannot be found in the context, say "I don't know based on the provided document."
+
+Context:
+{retrieved_context}
+
+Question:
+{query}
+
+Answer:
+"""
+
+# 12. Send prompt to local LLM via Ollama API
+response = requests.post(
+    "http://localhost:11434/api/generate",
+    json={
+        "model": "llama3",  # or "qwen2.5", "mistral", etc.
+        "prompt": prompt,
+        "stream": False
+    }
+)
+
+# 13. Output the generated response
+generated_text = response.json()["response"]
+print("\n=== FINAL GENERATED RESPONSE ===")
+print(generated_text)
