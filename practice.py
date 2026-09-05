@@ -1,5 +1,7 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 import faiss
-import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
 
@@ -75,7 +77,7 @@ for rank, doc_idx in enumerate(indices[0]):
 # 10. Extract the text from top retrieved chunks
 retrieved_context = "\n---\n".join([documents[idx]["text"] for idx in indices[0]])
 
-# 11. Construct the RAG prompt
+ #Construct the RAG prompt
 prompt = f"""
 You are a helpful assistant. Answer the question based ONLY on the following context.
 If the answer cannot be found in the context, say "I don't know based on the provided document."

@@ -1,8 +1,12 @@
+import os
+from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-# Connection Setup
-URI = "bolt://localhost:7687"
-AUTH = ("neo4j", "password123")
+load_dotenv()  # Load environment variables from .env file
+
+# Connection Setup using secure environment variables
+URI = os.getenv("NEO4J_URI")
+AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 driver = GraphDatabase.driver(URI, auth=AUTH)
 
 # Sample chunk and extracted triplets (Output from FAISS step + Ollama extraction)
